@@ -90,6 +90,7 @@ Example tags: `v0.1.0`, `latest`.
 - Repository **variable:** `GCP_GEMINI_SECRET_ID` — Secret **id** only (e.g. `backend-runai-gemini-api-key`), not the API key string.
 - Repository **variable:** `GCP_GEMINI_SECRET_LOCATION` — **Required for regional secrets** (e.g. `us-central1`). Leave **empty** if the secret is **global** (no location).
 - Repository **secrets:** `VM_HOST` (e.g. `35.225.99.206`), `VM_USER` (Linux login, e.g. your username), `VM_SSH_PRIVATE_KEY` (private key for that user; matching public key in `~/.ssh/authorized_keys` on the VM).
+- Repository **variable (optional):** `VM_DEPLOY_PATH` — directory on the VM where `vm-compose.yml` is copied and containers run. **Default:** `/tmp/backend-runai` (no sudo). To use `/opt/backend-runai` instead, run once on the VM: `sudo mkdir -p /opt/backend-runai && sudo chown "$USER:$USER" /opt/backend-runai`, then set `VM_DEPLOY_PATH` to `/opt/backend-runai`.
 
 ## Local run
 

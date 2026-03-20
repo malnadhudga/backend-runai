@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+# Writable by VM_USER without sudo. Override with repo variable VM_DEPLOY_PATH (e.g. /home/hegdegourish25/backend-runai).
+env:
+  DEPLOY_DIR: ${{ vars.VM_DEPLOY_PATH != '' && vars.VM_DEPLOY_PATH || '/tmp/backend-runai' }}
+
 jobs:
   deploy:
     if: >-
@@ -55,7 +59,7 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
           source: "deploy/vm-compose.yml"
-          target: "/opt/backend-runai/"
+          target: ${{ format('{0}/', env.DEPLOY_DIR) }}
           strip_components: 1
 
       - name: Pull image and restart container
@@ -69,11 +73,11 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
-          envs: GCP_PROJECT_ID,GEMINI_SECRET_ID,GEMINI_SECRET_LOCATION,IMAGE_REF
+          envs: GCP_PROJECT_ID,GEMINI_SECRET_ID,GEMINI_SECRET_LOCATION,IMAGE_REF,DEPLOY_DIR
           script: |
             set -euo pipefail
-            mkdir -p /opt/backend-runai
-            cd /opt/backend-runai
+            mkdir -p "${DEPLOY_DIR}"
+            cd "${DEPLOY_DIR}"
             LOC=""
             if [ -n "${GEMINI_SECRET_LOCATION:-}" ]; then
               LOC=" --location=${GEMINI_SECRET_LOCATION}"
