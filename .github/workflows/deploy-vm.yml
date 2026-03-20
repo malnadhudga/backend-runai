@@ -1,0 +1,85 @@
+name: Deploy to GCE VM
+
+# Runs after a successful image push to Artifact Registry, or manually.
+on:
+  workflow_run:
+    workflows: ["Release Docker image"]
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (e.g. v0.1.0 or latest)"
+        required: true
+        default: "latest"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify configuration
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GEMINI_SECRET_ID: ${{ vars.GCP_GEMINI_SECRET_ID }}
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_SSH_PRIVATE_KEY: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+        run: |
+          set -e
+          if [ -z "$GCP_PROJECT_ID" ]; then
+            echo "::error::Set repository variable GCP_PROJECT_ID"
+            exit 1
+          fi
+          if [ -z "$GEMINI_SECRET_ID" ]; then
+            echo "::error::Set repository variable GCP_GEMINI_SECRET_ID (Secret Manager id, e.g. gemini-api-key)"
+            exit 1
+          fi
+          if [ -z "$VM_HOST" ] || [ -z "$VM_USER" ] || [ -z "$VM_SSH_PRIVATE_KEY" ]; then
+            echo "::error::Set secrets VM_HOST, VM_USER, VM_SSH_PRIVATE_KEY"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: Copy compose file to VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          source: "deploy/vm-compose.yml"
+          target: "/opt/backend-runai/"
+          strip_components: 1
+
+      - name: Pull image and restart container
+        env:
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+          GEMINI_SECRET_ID: ${{ vars.GCP_GEMINI_SECRET_ID }}
+          GEMINI_SECRET_LOCATION: ${{ vars.GCP_GEMINI_SECRET_LOCATION }}
+          IMAGE_REF: us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/runai/runai-gemini-proxy:${{ github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag || 'latest' }}
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_PRIVATE_KEY }}
+          envs: GCP_PROJECT_ID,GEMINI_SECRET_ID,GEMINI_SECRET_LOCATION,IMAGE_REF
+          script: |
+            set -euo pipefail
+            mkdir -p /opt/backend-runai
+            cd /opt/backend-runai
+            LOC=""
+            if [ -n "${GEMINI_SECRET_LOCATION:-}" ]; then
+              LOC=" --location=${GEMINI_SECRET_LOCATION}"
+            fi
+            export GEMINI_API_KEY="$(gcloud secrets versions access latest --secret="${GEMINI_SECRET_ID}" --project="${GCP_PROJECT_ID}"${LOC})"
+            export GEMINI_MODEL="${GEMINI_MODEL:-gemini-2.5-flash-lite}"
+            gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+            docker compose -f vm-compose.yml pull
+            docker compose -f vm-compose.yml up -d --remove-orphans

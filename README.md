@@ -82,6 +82,15 @@ us-central1-docker.pkg.dev/<GCP_PROJECT_ID>/runai/runai-gemini-proxy:<tag>
 
 Example tags: `v0.1.0`, `latest`.
 
+**GitHub Actions (deploy to GCE VM):** workflow `deploy-vm.yml`
+
+- GitHub only runs workflows from the **default branch** (or the branch that contains the workflow file, depending on event). If your default branch is `main` and it has no `deploy/` or `.github/workflows/`, **merge `development` into `main`** or set **Settings → General → Default branch** to `development`.
+- **After** `Release Docker image` succeeds, deploy runs automatically (same repo).
+- Or **Actions → Deploy to GCE VM → Run workflow** (pick tag, default `latest`).
+- Repository **variable:** `GCP_GEMINI_SECRET_ID` — Secret **id** only (e.g. `backend-runai-gemini-api-key`), not the API key string.
+- Repository **variable:** `GCP_GEMINI_SECRET_LOCATION` — **Required for regional secrets** (e.g. `us-central1`). Leave **empty** if the secret is **global** (no location).
+- Repository **secrets:** `VM_HOST` (e.g. `35.225.99.206`), `VM_USER` (Linux login, e.g. your username), `VM_SSH_PRIVATE_KEY` (private key for that user; matching public key in `~/.ssh/authorized_keys` on the VM).
+
 ## Local run
 
 ```bash
@@ -124,19 +133,55 @@ curl -sS http://localhost:8080/v1/chat \
   -d '{"model":"gemini-2.5-flash-lite","system":"","messages":[{"role":"user","content":"Hi"}]}'
 ```
 
-## GCP deploy (outline)
+## GCE VM: one-time setup (e.g. Debian 12)
 
-1. Store `GEMINI_API_KEY` and optional `PROXY_BEARER_TOKEN` in **Secret Manager**.
-2. On the VM (or Cloud Run / GKE — adjust networking): install Docker and Docker Compose plugin.
-3. Use a `docker-compose.yml` that **pulls** the Artifact Registry image (not `build: .`) and injects secrets as env (e.g. `environment` from a startup script that reads Secret Manager, or [secret-specific compose syntax](https://docs.docker.com/compose/how-tos/use-secrets/) if you adopt Docker secrets).
-4. Deploy:
+Do this **before** the deploy workflow can succeed.
 
-   ```bash
-   gcloud auth configure-docker us-central1-docker.pkg.dev
-   docker compose pull && docker compose up -d
-   ```
+### 1. Secret Manager
 
-5. Terminate TLS at a load balancer or reverse proxy in front of the app.
+- Enable **Secret Manager API** on the project.
+- Create a secret whose **value** is your Gemini API key. If you use a **regional** secret (e.g. `us-central1`), set `GCP_GEMINI_SECRET_LOCATION=us-central1` in GitHub and use the same region in `gcloud` on the VM (`--location=us-central1`).
+
+### 2. VM service account IAM
+
+Your VM uses the default compute service account, e.g. `PROJECT_NUMBER-compute@developer.gserviceaccount.com`. Grant it:
+
+| Role | Why |
+|------|-----|
+| **Secret Manager Secret Accessor** | On that secret (or project) — `gcloud secrets versions access` on the VM |
+| **Artifact Registry Reader** | Pull image from `us-central1-docker.pkg.dev/.../runai/runai-gemini-proxy` |
+
+### 3. VM access scopes (important)
+
+If **Cloud Platform** access is **off**, `gcloud` on the VM cannot call Google APIs. **Stop the VM**, **Edit** → **Security and access** → set access scope to **Allow full access to all Cloud APIs** (or enable **Cloud Platform**), then start the VM again.
+
+### 4. Software on the VM
+
+SSH in and install:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl google-cloud-cli docker.io docker-compose-plugin
+sudo usermod -aG docker "$USER"
+# log out and back in so `docker` works without sudo
+```
+
+### 5. SSH for GitHub Actions
+
+- Generate a key pair (on your laptop): `ssh-keygen -t ed25519 -f deploy-vm -N ""`
+- Append `deploy-vm.pub` to **`~/.ssh/authorized_keys`** on the VM for `VM_USER`.
+- Put the contents of **`deploy-vm`** (private key) in GitHub secret **`VM_SSH_PRIVATE_KEY`**.
+
+### 6. Firewall
+
+**VPC network → Firewall rules**: allow **TCP 8080** (or 443 if you terminate TLS on the VM) from **your IP** first; avoid `0.0.0.0/0` until you add TLS + auth.
+
+### 7. Deploy flow
+
+1. Push git tag `v0.1.0` → **Release Docker image** builds and pushes to Artifact Registry.
+2. **Deploy to GCE VM** runs next and SSHs in, reads the Gemini key from Secret Manager, configures Docker auth, `docker compose pull` + `up -d` using `deploy/vm-compose.yml`.
+
+Put TLS (load balancer, Caddy, or nginx) in front for production.
 
 ## Security & logging
 
@@ -146,12 +191,6 @@ curl -sS http://localhost:8080/v1/chat \
 **Rate limiting:** not included in v1. For public endpoints, put a proxy (Cloud Armor, nginx limit_req, or add something like `slowapi`) in front.
 
 ---
-
-<!-- Optional second workflow (not implemented): SSH deploy after image push
-  Secrets: SSH_KEY (private key), optional VM_HOST / VM_USER as secrets or vars.
-  Job would: ssh to VM, docker compose pull, docker compose up -d.
-  Placeholders only — add when you have a fixed VM and key management.
--->
 
 ## License
 

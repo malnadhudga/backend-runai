@@ -1,0 +1,14 @@
+# Used on the VM: pull-only image from Artifact Registry (no local build).
+# IMAGE_REF, GEMINI_API_KEY, etc. come from the shell environment (see deploy workflow / README).
+
+services:
+  app:
+    image: ${IMAGE_REF}
+    ports:
+      - "8080:8080"
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash-lite}
+      PROXY_BEARER_TOKEN: ${PROXY_BEARER_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    restart: unless-stopped
