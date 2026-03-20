@@ -57,7 +57,7 @@ logger = structlog.get_logger(__name__)
 
 genai.configure(api_key=settings.gemini_api_key)
 
-app = FastAPI(title="backend-runai", version="0.1.2")
+app = FastAPI(title="backend-runai", version="0.1.3")
 
 _cors_origins = settings.cors_origin_list()
 if _cors_origins:
