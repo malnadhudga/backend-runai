@@ -78,9 +78,17 @@ jobs:
             set -euo pipefail
             export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
             if ! command -v docker >/dev/null 2>&1; then
-              echo "ERROR: docker not in PATH. On the VM (as a user with sudo) run:"
-              echo "  sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin"
+              echo "ERROR: docker not in PATH. On Debian VM (sudo) run:"
+              echo "  sudo apt-get update && sudo apt-get install -y docker.io docker-compose"
               echo "  sudo usermod -aG docker \"$(whoami)\"  # then log out and SSH back in"
+              exit 127
+            fi
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE="docker compose"
+            elif command -v docker-compose >/dev/null 2>&1; then
+              COMPOSE="docker-compose"
+            else
+              echo "ERROR: need Compose. On Debian: sudo apt-get install -y docker-compose"
               exit 127
             fi
             mkdir -p "${DEPLOY_DIR}"
@@ -92,5 +100,5 @@ jobs:
             export GEMINI_API_KEY="$(gcloud secrets versions access latest --secret="${GEMINI_SECRET_ID}" --project="${GCP_PROJECT_ID}"${LOC})"
             export GEMINI_MODEL="${GEMINI_MODEL:-gemini-2.5-flash-lite}"
             gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
-            docker compose -f vm-compose.yml pull
-            docker compose -f vm-compose.yml up -d --remove-orphans
+            $COMPOSE -f vm-compose.yml pull
+            $COMPOSE -f vm-compose.yml up -d --remove-orphans

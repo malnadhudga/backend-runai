@@ -162,7 +162,7 @@ SSH in and install:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl google-cloud-cli docker.io docker-compose-plugin
+sudo apt-get install -y ca-certificates curl google-cloud-cli docker.io docker-compose
 sudo usermod -aG docker "$USER"
 # log out and back in so `docker` works without sudo
 ```
@@ -180,7 +180,7 @@ sudo usermod -aG docker "$USER"
 ### 7. Deploy flow
 
 1. Push git tag `v0.1.0` → **Release Docker image** builds and pushes to Artifact Registry.
-2. **Deploy to GCE VM** runs next and SSHs in, reads the Gemini key from Secret Manager, configures Docker auth, `docker compose pull` + `up -d` using `deploy/vm-compose.yml`.
+2. **Deploy to GCE VM** runs next and SSHs in, reads the Gemini key from Secret Manager, configures Docker auth, then `pull` + `up -d` with `deploy/vm-compose.yml` (uses `docker compose` if available, else `docker-compose`).
 
 Put TLS (load balancer, Caddy, or nginx) in front for production.
 
