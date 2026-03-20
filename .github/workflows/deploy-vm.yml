@@ -76,6 +76,13 @@ jobs:
           envs: GCP_PROJECT_ID,GEMINI_SECRET_ID,GEMINI_SECRET_LOCATION,IMAGE_REF,DEPLOY_DIR
           script: |
             set -euo pipefail
+            export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "ERROR: docker not in PATH. On the VM (as a user with sudo) run:"
+              echo "  sudo apt-get update && sudo apt-get install -y docker.io docker-compose-plugin"
+              echo "  sudo usermod -aG docker \"$(whoami)\"  # then log out and SSH back in"
+              exit 127
+            fi
             mkdir -p "${DEPLOY_DIR}"
             cd "${DEPLOY_DIR}"
             LOC=""
