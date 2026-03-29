@@ -11,7 +11,7 @@ permissions:
 env:
   REGISTRY: us-central1-docker.pkg.dev
   REPOSITORY: runai
-  IMAGE: runai-gemini-proxy
+  IMAGE: runai-backend
   PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
 
 jobs:

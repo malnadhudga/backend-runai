@@ -67,7 +67,7 @@ jobs:
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           GEMINI_SECRET_ID: ${{ vars.GCP_GEMINI_SECRET_ID }}
           GEMINI_SECRET_LOCATION: ${{ vars.GCP_GEMINI_SECRET_LOCATION }}
-          IMAGE_REF: us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/runai/runai-gemini-proxy:${{ github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag || 'latest' }}
+          IMAGE_REF: us-central1-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/runai/runai-backend:${{ github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag || 'latest' }}
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VM_HOST }}
