@@ -14,3 +14,4 @@ build/
 htmlcov/
 .idea/
 .vscode/
+CLAUDE.md
